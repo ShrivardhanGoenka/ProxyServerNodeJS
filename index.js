@@ -1,18 +1,29 @@
 const bodyParser = require("body-parser");
 const express = require("express");
 const cors = require("cors");
+const request = require('request');
 
 const app = express();
 const PORT =  process.env.PORT || 3001;
-const SERVER_URL =
-  "https://1agnfox1re.execute-api.ap-south-1.amazonaws.com/Production";
+const SERVER_URL_AWS =
+  "https://1agnfox1re.execute-api.ap-south-1.amazonaws.com/Production/";
+const SERVER_URL_DJANGO =
+  "https://shrivardhangoenka.com/";
 
 app.use(express.json()); // bodyParser.json() is deprecated
 app.use(cors());
 
-app.all("*", async (req, res) => {
+app.all("/awslambda/*", async (req, res) => {
+  proxy(SERVER_URL_AWS, req, res)
+})
+
+app.all("/djangoserver/*", async (req, res) => {
+  proxy(SERVER_URL_DJANGO, req, res)
+})
+
+function proxy(serverUrl, req, res) {
   try {
-    const url = SERVER_URL + req.originalUrl;
+    const url = serverUrl + req.params[0];
     console.log(`Proxying request to: ${url}`);
     let options = {};
 
@@ -22,15 +33,11 @@ app.all("*", async (req, res) => {
     };
 
     if (req.method == "POST") {
-      let requestjson = {};
-      try {
-        requestjson = await req.body;
-      } catch (e) {}
       options = {
         uri: url,
         method: req.method,
         headers: headers,
-        body: JSON.stringify(requestjson),
+        body: JSON.stringify(req.body),
       };
     } else {
       options = {
@@ -39,18 +46,12 @@ app.all("*", async (req, res) => {
         headers: headers,
       };
     }
-    let r = await fetch(url, options);
-    console.log(r.status);
-    let responsejson = await r.json();
-    if (typeof responsejson == "string") {
-      responsejson = { error: responsejson };
-    }
-    console.log(responsejson);
-    res.status(r.status).send(responsejson);
+
+    request(options).pipe(res);
   } catch (e) {
     console.log(e);
   }
-});
+};
 
 app.listen(PORT, () => {
   console.log(`Proxy server listening on port ${PORT}`);
